@@ -29,6 +29,11 @@ MARK_AS_ADVANCED(
 
 find_package( OpenCV REQUIRED )
 
+find_package(OpenCL REQUIRED)
+
+INCLUDE_DIRECTORIES(${OpenCL_INCLUDE_DIRS}) 
+
+LINK_DIRECTORIES(${OpenCL_LIBRARY})
 
 add_executable(${PROJECT_NAME} main.cpp utils.h utils.cpp interpolation_cpu.h interpolation_cpu.cpp interpolation_gpu.h interpolation_gpu.cpp)
 
