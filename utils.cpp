@@ -9,7 +9,7 @@ int sign(int x) {
 
 // 把float数组转换成opencv图片对象
 IplImage* arr2img(float* data, int width, int height) {
-    IplImage* img = cvCreateImage(CvSize(width, height), 8, 1);
+    IplImage* img = cvCreateImage(cvSize(width, height), 8, 1);
     for (int j = 0;j<height;j++)
     {
         for (int i = 0;i<width;i++)
