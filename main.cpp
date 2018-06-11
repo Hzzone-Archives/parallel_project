@@ -13,6 +13,7 @@
 #include <time.h>
 #include "ocl_macros.h"
 
+
 int main(int argc, char *argv[])
 {
     Image *img = new Image();
@@ -21,7 +22,7 @@ int main(int argc, char *argv[])
     if (!(file = fopen("image.dat", "rb")))
     {
         perror("fopen()");
-        return NULL;
+        exit(1);
     }
     // 获取图片信息
     int res = fscanf(file, "%d %d %f %f %f\n",
@@ -39,66 +40,18 @@ int main(int argc, char *argv[])
     IplImage* im = arr2img(img->data, img->height, img->width);
     cv::imwrite("原图片.bmp", cv::cvarrToMat(im));
 
-    Mat mat1;
-    Mat mat2;
-    Mat mat3;
+    Mat mat;
+    Mat cubic_mat;
     IplImage* imsc;
     double start_time=0.0, end_time=0.0;
-    double time1 = 0.0;
-    double time2 = 0.0;
-    double time3 = 0.0;
+    double cpu_total_time = 0.0;
+    double gpu_time = 0.0;
+    double cpu_time = 0.0;
 
-    int counts = 1;
-    for(int i=0; i<counts; i++) {
-
-        //////
-        start_time = clock();
-        imsc = ScanConvCurve_B(img);
-        end_time = clock();
-        time1 += double(end_time-start_time)/CLOCKS_PER_SEC;
-        mat1 = cvarrToMat(imsc);
-
-
-        /////
-        start_time = clock();
-        imsc = Inter_Linear(img);
-        end_time = clock();
-        time2 += double(end_time-start_time)/CLOCKS_PER_SEC;
-        mat2 = cvarrToMat(imsc);
-
-        ////
-
-        start_time = clock();
-        imsc = Bi_cubic(img);
-        end_time = clock();
-        time3 += double(end_time-start_time)/CLOCKS_PER_SEC;
-        mat3 = cvarrToMat(imsc);
-
-        printf("#");
-    }
-
-    printf("\n");
-
-    printf("插值结果如下：\n");
-
-
-    cv::imwrite("邻近插值.bmp", mat1);
-    cv::imwrite("双线性插值.bmp", mat2);
-    cv::imwrite("双三次插值.bmp", mat3);
-
-//    printf("邻近插值的psnr：%f，ssim：%f", getPSNR(mat1, mat3), getSSIM(mat1, mat3));
-//    printf("双线性插值的psnr：%f，ssim：%f", getPSNR(mat2, mat3), getSSIM(mat2, mat3));
-    printf("算法\t平台\t平均时间(ms)\tSSIM\tPSNR\tMSE\n");
-    printf("邻近插值\t%s\t%.2f\t\t%.2f\t%.2f\t%.2f\t\n", "CPU", time1/counts*1000.0, getSSIM(mat1, mat3), getPSNR(mat1, mat3), getMSE(mat1, mat3));
-    printf("双线性插值\t%s\t%.2f\t\t%.2f\t%.2f\t%.2f\t\n", "CPU", time2/counts*1000.0, getSSIM(mat2, mat3), getPSNR(mat2, mat3), getMSE(mat2, mat3));
-    printf("双三次插值\t%s\t%.2f\t\t%.2f\t%.2f\t%.2f\t\n", "CPU", time3/counts*1000.0, getSSIM(mat3, mat3), getPSNR(mat3, mat3), getMSE(mat3, mat3));
-
-    cvReleaseImage(&im);
-    cvReleaseImage(&imsc);
-
+    int counts = 100;
 
     cl_int status = 0;
-    char kernels[2][10] = {"BiLinear", "BiNearst"};
+
     size_t groupSizeX = 16, groupSizeY = 16;
     size_t ResImageH, ResImageW;
 
@@ -109,41 +62,87 @@ int main(int argc, char *argv[])
 
     init(groupSizeX, groupSizeY, ResImageH, ResImageW, context, commandQueue, program, "kernel/BiLinear.cl", *img, inputImageBuffer, widthBuffer, heightBuffer, angleBuffer, depthBuffer, CurProbeRadiusBuffer, outputImageBuffer);
 
+    double ssim = 0.0, mse = 0.0, psnr = 0.0;
+
+
+    printf("插值结果如下：\n");
+
+
+    //    cv::imwrite("双线性插值.bmp", mat2);
+    //    cv::imwrite("双三次插值.bmp", mat3);
+
+    printf("算法\t平台\t平均时间(ms)\tSSIM\tPSNR\tMSE\n");
+
+    //双三次插值
+    for (int i=0; i<counts; i++)
+    {
+        start_time = clock();
+        imsc = Bi_cubic(img);
+        end_time = clock();
+        cpu_total_time += double(end_time-start_time)/CLOCKS_PER_SEC;
+        cubic_mat = cvarrToMat(imsc);
+        ssim += getSSIM(cubic_mat, cubic_mat);
+        mse += getMSE(cubic_mat, cubic_mat);
+        psnr += getMSE(cubic_mat, cubic_mat);
+    }
+
+
+    cv::imwrite("双三次插值_cpu.bmp", cubic_mat);
+
+
+    printf("双三次插值\t%s\t%.2f\t\t%.2f\t%.2f\t%.2f\t\n", "CPU", cpu_total_time/counts*1000.0, ssim/counts, psnr/counts, mse/counts);
+
+
+    ssim = 0.0, mse = 0.0, psnr = 0.0, cpu_total_time = 0.0;
+
+    //邻近插值
+    for (int i=0; i<counts; i++)
+    {
+        start_time = clock();
+        imsc = ScanConvCurve_B(img);
+        end_time = clock();
+        cpu_total_time += double(end_time-start_time)/CLOCKS_PER_SEC;
+        mat = cvarrToMat(imsc);
+        ssim += getSSIM(mat, cubic_mat);
+        mse += getMSE(mat, cubic_mat);
+        psnr += getMSE(mat, cubic_mat);
+    }
+
+    cv::imwrite("邻近插值_cpu.bmp", mat);
+
+    printf("邻近插值\t%s\t%.2f\t\t%.2f\t%.2f\t%.2f\t\n", "CPU", cpu_total_time/counts*1000.0, ssim/counts, psnr/counts, mse/counts);
+
+
+
+    ssim = 0.0, mse = 0.0, psnr = 0.0, cpu_total_time = 0.0;
+
+    //双线性插值
+    for (int i=0; i<counts; i++)
+    {
+        start_time = clock();
+        imsc = Inter_Linear(img);
+        end_time = clock();
+        cpu_total_time += double(end_time-start_time)/CLOCKS_PER_SEC;
+        mat = cvarrToMat(imsc);
+        ssim += getSSIM(mat, cubic_mat);
+        mse += getMSE(mat, cubic_mat);
+        psnr += getMSE(mat, cubic_mat);
+    }
+
+    cv::imwrite("双线性插值_cpu.bmp", mat);
+
+
+    cpu_time = cpu_total_time/counts*1000.0;
+
+    printf("双线性插值\t%s\t%.2f\t\t%.2f\t%.2f\t%.2f\t\n", "CPU", cpu_time, ssim/counts, psnr/counts, mse/counts);
+
+
+
     cl_kernel kernel = createKernel(program, "interpolation_kernel", inputImageBuffer, widthBuffer, heightBuffer, angleBuffer, depthBuffer, CurProbeRadiusBuffer);
 
-    // Execute the OpenCL kernel on the list
-    cl_event ndrEvt;
+    gpu_time = run_kernel("双线性插值", cubic_mat, commandQueue, kernel, outputImageBuffer, ResImageW, ResImageH, groupSizeX, groupSizeY, counts);
 
-    //2D Kernel Setting
-    size_t globalThreads[] = {
-        ResImageW,
-        ResImageH
-    };
-    size_t localThreads[] = { groupSizeX, groupSizeY };
-    status = clEnqueueNDRangeKernel(
-        commandQueue,
-        kernel,
-        2,
-        NULL,
-        globalThreads,
-        localThreads,
-        0,
-        NULL,
-        &ndrEvt);
-    LOG_OCL_ERROR(status, "clEnqueueNDRangeKernel Failed.");
-
-    status = clFinish(commandQueue);
-    LOG_OCL_ERROR(status, "clFinish Failed.");
-
-    //Compute kernel's execution time
-    clWaitForEvents(1, &ndrEvt);
-    cl_ulong startTime, endTime;
-    clGetEventProfilingInfo(ndrEvt, CL_PROFILING_COMMAND_START,
-        sizeof(cl_ulong), &startTime, NULL);
-    clGetEventProfilingInfo(ndrEvt, CL_PROFILING_COMMAND_END,
-        sizeof(cl_ulong), &endTime, NULL);
-    cl_ulong kernelExecTimeNs = endTime - startTime;
-    printf("Local_size: %d * %d \nKernel运行时间 :%8.6f ms\n\n", groupSizeX, groupSizeY, kernelExecTimeNs*1e-6);
+    printf("加速比: %4.3f\n", cpu_time/gpu_time);
 
 
 

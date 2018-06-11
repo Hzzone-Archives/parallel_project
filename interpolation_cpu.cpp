@@ -7,7 +7,7 @@ IplImage* ScanConvCurve_B(Image *img) {
     int Lnum = iLine;
     int Snum = iSmapleNum;
 
-    int iBHeightResolve = 512; // 预定义的图像高度
+    int iBHeightResolve = 1024; // 预定义的图像高度
     float cuEPSILON = 1e-6;
     float alpha = -0.5; // cubic 插值系数 : -1, -0.75 or -0.5.
     float ProbeRadiusPixel = img->radius * Snum / img->depth;
@@ -62,7 +62,7 @@ IplImage* Inter_Linear(Image *img) {
     int Lnum = iLine;
     int Snum = iSmapleNum;
 
-    int iBHeightResolve = 512; // 预定义的图像高度
+    int iBHeightResolve = 1024; // 预定义的图像高度
     float cuEPSILON = 1e-6;
     float alpha = -0.5; // cubic 插值系数 : -1, -0.75 or -0.5.
     float ProbeRadiusPixel = img->radius * Snum / img->depth;
@@ -138,7 +138,7 @@ IplImage* Bi_cubic(Image *img) {
     int Lnum = iLine;
     int Snum = iSmapleNum;
 
-    int iBHeightResolve = 512; // 预定义的图像高度
+    int iBHeightResolve = 1024; // 预定义的图像高度
     float cuEPSILON = 1e-6;
     float alpha = -0.5; // cubic 插值系数 : -1, -0.75 or -0.5.
     float ProbeRadiusPixel = img->radius * Snum / img->depth;

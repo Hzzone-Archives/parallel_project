@@ -69,6 +69,7 @@ void init(size_t groupSizeX, size_t groupSizeY, size_t& ResImageH, size_t& ResIm
     float	ProbeRadiusPixel = CurProbeRadius * Snum / Depth;
     float SectorRadiusPixel = ProbeRadiusPixel + Snum;
     ResImageH = 1024;
+//    ResImageH = 512;
     float Ratio = ResImageH / (SectorRadiusPixel - cos(Angle)*ProbeRadiusPixel + 1);
     ResImageW = round(sin(Angle)*SectorRadiusPixel * 2 * Ratio + 1);
 
@@ -235,6 +236,93 @@ cl_kernel createKernel(cl_program& program, char* kernel_name, cl_mem& inputImag
     LOG_OCL_ERROR(status, "clSetKernelArg Failed.");
 
     return kernel;
+
+}
+
+double run_kernel(char* msg, Mat& org_mat, cl_command_queue& commandQueue, cl_kernel& kernel, cl_mem& outputImageBuffer, size_t ResImageW, size_t ResImageH, size_t groupSizeX, size_t groupSizeY, int counts)
+{
+    cl_int status = 0;
+    //2D Kernel Setting
+    size_t globalThreads[] = {
+        ResImageW,
+        ResImageH
+    };
+    size_t localThreads[] = { groupSizeX, groupSizeY };
+    double kernelExecTimeNs = 0.0;
+
+    float res[ResImageH*ResImageW];
+    float ssim = 0.0, psnr = 0.0, mse = 0.0;
+
+    Mat mat;
+
+    for (int i=0; i<counts; i++) {
+        // Execute the OpenCL kernel on the list
+        cl_event ndrEvt;
+
+        status = clEnqueueNDRangeKernel(
+            commandQueue,
+            kernel,
+            2,
+            NULL,
+            globalThreads,
+            localThreads,
+            0,
+            NULL,
+            &ndrEvt);
+        LOG_OCL_ERROR(status, "clEnqueueNDRangeKernel Failed.");
+
+        status = clFinish(commandQueue);
+        LOG_OCL_ERROR(status, "clFinish Failed.");
+
+        //Compute kernel's execution time
+        clWaitForEvents(1, &ndrEvt);
+        cl_ulong startTime, endTime;
+        clGetEventProfilingInfo(ndrEvt, CL_PROFILING_COMMAND_START,
+            sizeof(cl_ulong), &startTime, NULL);
+        clGetEventProfilingInfo(ndrEvt, CL_PROFILING_COMMAND_END,
+            sizeof(cl_ulong), &endTime, NULL);
+        kernelExecTimeNs += endTime - startTime;
+
+        //Read the Data back into the host memory.
+        cl_event readEvt;
+        status = clEnqueueReadBuffer(
+        commandQueue,
+        outputImageBuffer,
+        CL_TRUE,
+        0,
+        ResImageH * ResImageW* sizeof(float),
+        res,
+        0,
+        NULL,
+        &readEvt);
+        LOG_OCL_ERROR(status, "clEnqueueReadBuffer of outputImg Failed.");
+
+        status = clWaitForEvents(1, &readEvt);
+        //status = clFinish(commandQueue);
+        LOG_OCL_ERROR(status, "clWaitForEvents for readEvt.");
+
+        IplImage* img = arr2img(res, ResImageW, ResImageH);
+//        printf("%d %d %d %d\n", img->width, img->height, org_mat.cols, org_mat.rows);
+
+        mat = cvarrToMat(img);
+
+        ssim += getSSIM(mat, org_mat);
+        psnr += getPSNR(mat, org_mat);
+        mse += getMSE(mat, org_mat);
+
+    }
+
+
+    printf("%s\t%s\t%.2f\t\t%.2f\t%.2f\t%.2f\t\n", msg, "GPU", kernelExecTimeNs*1e-6/counts, ssim/counts, psnr/counts, mse/counts);
+
+    char file_name [80];
+    strcpy (file_name, msg);
+    strcat (file_name, "_gpu.bmp");
+
+    cv::imwrite(file_name, mat);
+
+    return kernelExecTimeNs*1e-6/counts;
+
 
 }
 
