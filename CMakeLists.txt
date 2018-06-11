@@ -35,6 +35,14 @@ INCLUDE_DIRECTORIES(${OpenCL_INCLUDE_DIRS})
 
 LINK_DIRECTORIES(${OpenCL_LIBRARY})
 
-add_executable(${PROJECT_NAME} main.cpp utils.h utils.cpp interpolation_cpu.h interpolation_cpu.cpp interpolation_gpu.h interpolation_gpu.cpp)
+add_executable(${PROJECT_NAME} main.cpp utils.cpp interpolation_cpu.cpp interpolation_gpu.cpp ocl_macros.h)
 
 target_link_libraries(${PROJECT_NAME}  ${OPENCL_LIBRARIES} ${OpenCV_LIBS} )
+
+configure_file(image.dat ${CMAKE_CURRENT_BINARY_DIR}/image.dat COPYONLY)
+
+file(GLOB SRC_LIST kernel/*.cl)
+foreach(cl_file ${SRC_LIST})
+        STRING(REGEX REPLACE ".+/(.+)\\..*" "\\1" FILE_NAME ${cl_file})
+        configure_file(${cl_file} ${CMAKE_CURRENT_BINARY_DIR}/kernel/${FILE_NAME}.cl COPYONLY)
+endforeach()
