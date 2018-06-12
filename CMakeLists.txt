@@ -215,9 +215,5 @@ add_executable(${PROJECT_NAME} main.cpp utils.cpp interpolation_cpu.cpp interpol
 target_link_libraries(${PROJECT_NAME}  ${OPENCL_LIBRARIES} ${OpenCV_LIBS} )
 
 configure_file(image.dat ${CMAKE_CURRENT_BINARY_DIR}/image.dat COPYONLY)
+configure_file(kernel.cl ${CMAKE_CURRENT_BINARY_DIR}/kernel.cl COPYONLY)
 
-file(GLOB SRC_LIST kernel/*.cl)
-foreach(cl_file ${SRC_LIST})
-        STRING(REGEX REPLACE ".+/(.+)\\..*" "\\1" FILE_NAME ${cl_file})
-        configure_file(${cl_file} ${CMAKE_CURRENT_BINARY_DIR}/kernel/${FILE_NAME}.cl COPYONLY)
-endforeach()

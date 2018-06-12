@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
     double cpu_time = 0.0;
 
 //    int counts = 100;
-    int counts = 10;
+    int counts = 1;
 
     cl_int status = 0;
 
@@ -61,7 +61,9 @@ int main(int argc, char *argv[])
     cl_program program;
     cl_mem memObjects[16];//内存对象
 
-    init(groupSizeX, groupSizeY, ResImageH, ResImageW, context, commandQueue, program, "kernel/BiLinear.cl", img, memObjects);
+    cl_kernel kernel;
+
+    init(groupSizeX, groupSizeY, ResImageH, ResImageW, context, commandQueue, program, "kernel.cl", img, memObjects);
 
     double ssim = 0.0, mse = 0.0, psnr = 0.0;
 
@@ -96,8 +98,15 @@ int main(int argc, char *argv[])
 
     cv::imwrite("双三次插值_cpu.bmp", cubic_mat);
 
+    cpu_time = cpu_total_time/counts*1000.0;
+    printf("双三次插值\t%s\t%.2f\t\t%.2f\t%.2f\t%.2f\t\n", "CPU", cpu_time, ssim/counts, psnr/counts, mse/counts);
 
-    printf("双三次插值\t%s\t%.2f\t\t%.2f\t%.2f\t%.2f\t\n", "CPU", cpu_total_time/counts*1000.0, ssim/counts, psnr/counts, mse/counts);
+    kernel = createKernel(program, "Bi_cubic", memObjects);
+
+    gpu_time = run_kernel("双三次插值", cubic_mat, commandQueue, kernel, memObjects[15], ResImageW, ResImageH, groupSizeX, groupSizeY, counts);
+
+    printf("加速比: %4.3f\n", cpu_time/gpu_time);
+
 
 
     ssim = 0.0, mse = 0.0, psnr = 0.0, cpu_total_time = 0.0;
@@ -117,7 +126,15 @@ int main(int argc, char *argv[])
 
     cv::imwrite("邻近插值_cpu.bmp", mat);
 
-    printf("邻近插值\t%s\t%.2f\t\t%.2f\t%.2f\t%.2f\t\n", "CPU", cpu_total_time/counts*1000.0, ssim/counts, psnr/counts, mse/counts);
+    cpu_time = cpu_total_time/counts*1000.0;
+
+    printf("邻近插值\t%s\t%.2f\t\t%.2f\t%.2f\t%.2f\t\n", "CPU", cpu_time, ssim/counts, psnr/counts, mse/counts);
+
+    kernel = createKernel(program, "ScanConvCurve_B", memObjects);
+
+    gpu_time = run_kernel("邻近插值", cubic_mat, commandQueue, kernel, memObjects[15], ResImageW, ResImageH, groupSizeX, groupSizeY, counts);
+
+    printf("加速比: %4.3f\n", cpu_time/gpu_time);
 
 
 
@@ -145,7 +162,7 @@ int main(int argc, char *argv[])
 
 
 
-    cl_kernel kernel = createKernel(program, "Inter_Linear", memObjects);
+    kernel = createKernel(program, "Inter_Linear", memObjects);
 
     gpu_time = run_kernel("双线性插值", cubic_mat, commandQueue, kernel, memObjects[15], ResImageW, ResImageH, groupSizeX, groupSizeY, counts);
 
