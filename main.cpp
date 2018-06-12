@@ -49,11 +49,16 @@ int main(int argc, char *argv[])
     double cpu_time = 0.0;
 
 //    int counts = 100;
-    int counts = 1;
+    int counts = 5;
 
     cl_int status = 0;
 
-    size_t groupSizeX = 16, groupSizeY = 16;
+//    size_t groupSizeX = 1, groupSizeY = 1;
+//    size_t groupSizeX = 2, groupSizeY = 2;
+//    size_t groupSizeX = 4, groupSizeY = 4;
+    size_t groupSizeX = 8, groupSizeY = 8;
+//    size_t groupSizeX = 16, groupSizeY = 16;
+//    size_t groupSizeX = 32, groupSizeY = 32;
     size_t ResImageH, ResImageW;
 
     cl_context context;

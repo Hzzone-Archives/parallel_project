@@ -1,8 +1,8 @@
 #define cuEPSILON 1e-6
 
-int signZS(__private int x) {
-    if (x > 0) return 1;
-    else if (x < 0) return -1;
+inline int signZS(__private int* x) {
+    if (*x > 0) return 1;
+    else if (*x < 0) return -1;
     else return 0;
 }
 
@@ -34,7 +34,7 @@ void Inter_Linear(__global float* data,   //传入数据
     // 若映射后的在该圆环内
     if (fHitPointNorm > *ProbeRadiusPixel - cuEPSILON &&  fHitPointNorm < *SectorRadiusPiexl + cuEPSILON) {
         // 映射后的点的角度
-        float fSamplePointAngle = acos((float)(fHitY / fHitPointNorm - cuEPSILON)) * signZS(fHitX); // Cos求角度
+        float fSamplePointAngle = acos((float)(fHitY / fHitPointNorm - cuEPSILON)) * signZS(&fHitX); // Cos求角度
         // 若映射后的点的角度没有超出范围
         if (fSamplePointAngle > *StartAngle - cuEPSILON && fSamplePointAngle < *EndAngle + cuEPSILON) {
             // CublicSample
@@ -77,38 +77,26 @@ void ScanConvCurve_B(__global float* data,   //传入数据
 {
     int iX = get_global_id(0);
     int iY = get_global_id(1);
-//    cl_amd_printf("reach");
-//    for (uint iX = 0; iX < *ResImageW; iX++) {
-//        for (uint iY = 0; iY < *ResImageH; iY++) {
-            int fHitX = iX - *X + *TranformHor;// 采样位置以交点为原点的成像位置x
-            int fHitY = iY - *Y + *TranformVec; // 采样位置以交点为原点的成像位置y
-            // Depth
-            float fHitPointNorm = sqrt((float)(fHitX*fHitX + fHitY*fHitY)); // 距交点距离
-            // 若映射后的在该圆环内
-            if (fHitPointNorm > *ProbeRadiusPixel - cuEPSILON &&  fHitPointNorm < *SectorRadiusPiexl + cuEPSILON) {
+    int fHitX = iX - *X + *TranformHor;// 采样位置以交点为原点的成像位置x
+    int fHitY = iY - *Y + *TranformVec; // 采样位置以交点为原点的成像位置y
+    // Depth
+    float fHitPointNorm = sqrt((float)(fHitX*fHitX + fHitY*fHitY)); // 距交点距离
+    // 若映射后的在该圆环内
+    if (fHitPointNorm > *ProbeRadiusPixel - cuEPSILON &&  fHitPointNorm < *SectorRadiusPiexl + cuEPSILON) {
                 
-//                // 映射后的点的角度
-//                if (fHitX > 0) fHitX = 1;
-//                else if (fHitX < 0) fHitX = -1;
-//                else fHitX = 0;
-                
-                float fSamplePointAngle = acos((float)(fHitY / fHitPointNorm - cuEPSILON)) * signZS(fHitX); // Cos求角度
-                // 若映射后的点的角度没有超出范围
-                if (fSamplePointAngle > *StartAngle - cuEPSILON && fSamplePointAngle < *EndAngle + cuEPSILON) {
-                    // CublicSample
-                    float PosX = (fSamplePointAngle - *StartAngle)*(*AveIntervalAngleReciprocal); // 第几条数据
-                    float PosY = (fHitPointNorm - *ProbeRadiusPixel)*(*Ratio);  // 第几条数据的第几个数据
-//                    int PosXint1 = floor(PosX);
-//                    int PosYint1 = floor(PosY);
-                    int PosXint1 = PosX - floor(PosX) > 0.5 ? ceil(PosX) : floor(PosX);
-                    int PosYint1 = PosY - floor(PosY) > 0.5 ? ceil(PosY) : floor(PosY);
-                    // 若转换后该点区间在范围内
-                    if(PosXint1 >= 0 && PosXint1<*iLine && PosYint1 >= 0 && PosYint1<*iSmapleNum)
-                        SCRes[iY*(*ResImageW) + iX] = (data)[PosXint1*(*iSmapleNum)+PosYint1];
-                }
-            }
-//        }
-//    }
+        float fSamplePointAngle = acos((float)(fHitY / fHitPointNorm - cuEPSILON)) * signZS(&fHitX); // Cos求角度
+        // 若映射后的点的角度没有超出范围
+        if (fSamplePointAngle > *StartAngle - cuEPSILON && fSamplePointAngle < *EndAngle + cuEPSILON) {
+            // CublicSample
+            float PosX = (fSamplePointAngle - *StartAngle)*(*AveIntervalAngleReciprocal); // 第几条数据
+            float PosY = (fHitPointNorm - *ProbeRadiusPixel)*(*Ratio);  // 第几条数据的第几个数据
+            int PosXint1 = PosX - floor(PosX) > 0.5 ? ceil(PosX) : floor(PosX);
+            int PosYint1 = PosY - floor(PosY) > 0.5 ? ceil(PosY) : floor(PosY);
+            // 若转换后该点区间在范围内
+            if(PosXint1 >= 0 && PosXint1<*iLine && PosYint1 >= 0 && PosYint1<*iSmapleNum)
+                SCRes[iY*(*ResImageW) + iX] = (data)[PosXint1*(*iSmapleNum)+PosYint1];
+        }
+    }
 }
 
 
@@ -151,7 +139,7 @@ void Bi_cubic(__global float* data,   //传入数据
     // 若映射后的在该圆环内
     if (fHitPointNorm > *ProbeRadiusPixel - cuEPSILON &&  fHitPointNorm < *SectorRadiusPiexl + cuEPSILON) {
         // 映射后的点的s角度
-        float fSamplePointAngle = acos((float)(fHitY / fHitPointNorm - cuEPSILON)) * signZS(fHitX); // Cos求角度
+        float fSamplePointAngle = acos((float)(fHitY / fHitPointNorm - cuEPSILON)) * signZS(&fHitX); // Cos求角度
         // 若映射后的点的角度没有超出范围
         if (fSamplePointAngle > *StartAngle - cuEPSILON && fSamplePointAngle < *EndAngle + cuEPSILON) {
             // CublicSample
@@ -176,3 +164,4 @@ void Bi_cubic(__global float* data,   //传入数据
         }
     }
 }
+

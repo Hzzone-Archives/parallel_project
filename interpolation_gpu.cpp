@@ -160,7 +160,7 @@ cl_kernel createKernel(cl_program& program, char* kernel_name, cl_mem* memObject
 {
     cl_int status = 0;
     cl_kernel kernel = clCreateKernel(program, kernel_name, &status);
-    LOG_OCL_ERROR(status, "clCreateKernel interpolation_kernel Failed.");
+    LOG_OCL_ERROR(status, "clCreateKernel kernel Failed.");
 
     // Set the arguments of the kernel
 //    status = clSetKernelArg(kernel, 0, sizeof(cl_mem), (void*)&inputImageBuffer);

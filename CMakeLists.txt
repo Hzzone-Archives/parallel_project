@@ -210,7 +210,7 @@ INCLUDE_DIRECTORIES(${OpenCL_INCLUDE_DIRS})
 
 LINK_DIRECTORIES(${OpenCL_LIBRARY})
 
-add_executable(${PROJECT_NAME} main.cpp utils.cpp interpolation_cpu.cpp interpolation_gpu.cpp ocl_macros.h)
+add_executable(${PROJECT_NAME} main.cpp utils.cpp interpolation_cpu.cpp interpolation_gpu.cpp)
 
 target_link_libraries(${PROJECT_NAME}  ${OPENCL_LIBRARIES} ${OpenCV_LIBS} )
 
