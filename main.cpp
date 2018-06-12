@@ -97,7 +97,7 @@ int main(int argc, char *argv[])
         cubic_mat = cvarrToMat(imsc);
         ssim += getSSIM(cubic_mat, cubic_mat);
         mse += getMSE(cubic_mat, cubic_mat);
-        psnr += getMSE(cubic_mat, cubic_mat);
+        psnr += getPSNR(cubic_mat, cubic_mat);
     }
 
 
@@ -126,7 +126,7 @@ int main(int argc, char *argv[])
         mat = cvarrToMat(imsc);
         ssim += getSSIM(mat, cubic_mat);
         mse += getMSE(mat, cubic_mat);
-        psnr += getMSE(mat, cubic_mat);
+        psnr += getPSNR(mat, cubic_mat);
     }
 
     cv::imwrite("邻近插值_cpu.bmp", mat);
@@ -155,7 +155,7 @@ int main(int argc, char *argv[])
         mat = cvarrToMat(imsc);
         ssim += getSSIM(mat, cubic_mat);
         mse += getMSE(mat, cubic_mat);
-        psnr += getMSE(mat, cubic_mat);
+        psnr += getPSNR(mat, cubic_mat);
     }
 
     cv::imwrite("双线性插值_cpu.bmp", mat);
@@ -172,6 +172,26 @@ int main(int argc, char *argv[])
     gpu_time = run_kernel("双线性插值", cubic_mat, commandQueue, kernel, memObjects[15], ResImageW, ResImageH, groupSizeX, groupSizeY, counts);
 
     printf("加速比: %4.3f\n", cpu_time/gpu_time);
+
+    kernel = createKernel(program, "Nearst_cubic", memObjects);
+
+
+    gpu_time = run_kernel("邻近(上)+双三次(下)", cubic_mat, commandQueue, kernel, memObjects[15], ResImageW, ResImageH, groupSizeX, groupSizeY, counts);
+
+    kernel = createKernel(program, "Nearst_linear", memObjects);
+
+
+    gpu_time = run_kernel("邻近(上)+线性(下)", cubic_mat, commandQueue, kernel, memObjects[15], ResImageW, ResImageH, groupSizeX, groupSizeY, counts);
+
+    kernel = createKernel(program, "Linear_cubic", memObjects);
+
+
+    gpu_time = run_kernel("线性(上)+双三次(下)", cubic_mat, commandQueue, kernel, memObjects[15], ResImageW, ResImageH, groupSizeX, groupSizeY, counts);
+
+    kernel = createKernel(program, "Nearst_linear_cubic", memObjects);
+
+
+    gpu_time = run_kernel("邻近(上)+线性(中)+双三次(下)", cubic_mat, commandQueue, kernel, memObjects[15], ResImageW, ResImageH, groupSizeX, groupSizeY, counts);
 
 
 
