@@ -48,7 +48,8 @@ int main(int argc, char *argv[])
     double gpu_time = 0.0;
     double cpu_time = 0.0;
 
-    int counts = 100;
+//    int counts = 100;
+    int counts = 1;
 
     cl_int status = 0;
 
@@ -72,6 +73,12 @@ int main(int argc, char *argv[])
     //    cv::imwrite("双三次插值.bmp", mat3);
 
     printf("算法\t平台\t平均时间(ms)\tSSIM\tPSNR\tMSE\n");
+
+//    printf("%d %d %f %f %f\n", img->width, img->height, img->angle, img->depth, img->radius);
+
+//    for (int i=0;i<100;i++)
+//        printf("%f\n", img->data[i]);
+
 
     //双三次插值
     for (int i=0; i<counts; i++)
@@ -138,7 +145,7 @@ int main(int argc, char *argv[])
 
 
 
-    cl_kernel kernel = createKernel(program, "interpolation_kernel", inputImageBuffer, widthBuffer, heightBuffer, angleBuffer, depthBuffer, CurProbeRadiusBuffer);
+    cl_kernel kernel = createKernel(program, "interpolation_kernel", inputImageBuffer, outputImageBuffer, widthBuffer, heightBuffer, angleBuffer, depthBuffer, CurProbeRadiusBuffer);
 
     gpu_time = run_kernel("双线性插值", cubic_mat, commandQueue, kernel, outputImageBuffer, ResImageW, ResImageH, groupSizeX, groupSizeY, counts);
 

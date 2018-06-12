@@ -1,17 +1,18 @@
 #pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
 #pragma OPENCL EXTENSION cl_amd_printf : enable
 __kernel void interpolation_kernel(global float *inData, global float *outData, 
-									global int* paraImg1, global float* paraImg2)
+									global int* width, global int* height,
+									global float* angle, global float* depth, global float* radius)
 {
 	int iX = get_global_id(0); //width
 	int iY = get_global_id(1); //height
 	
 	// 参数准备
-	int Lnum = paraImg1[0];
-	int Snum = paraImg1[1];
-	float Angle = paraImg2[0];
-	float Depth = paraImg2[1];
-	float CurProbeRadius = paraImg2[2];
+	int Lnum = *width;
+	int Snum = *height;
+	float Angle = *angle;
+	float Depth = *depth;
+	float CurProbeRadius = *radius;
 	int iBHeightResolve = 1024;
 	float cuEPSILON = 1e-6;
 	float alpha = -0.5; 

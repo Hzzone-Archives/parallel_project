@@ -119,7 +119,7 @@ void init(size_t groupSizeX, size_t groupSizeY, size_t& ResImageH, size_t& ResIm
 
     outputImageBuffer = clCreateBuffer(
         context,
-        CL_MEM_READ_ONLY,
+        CL_MEM_WRITE_ONLY,
         sizeof(float) * ResImageH * ResImageW,
         NULL,
         &status);
@@ -218,9 +218,10 @@ void init(size_t groupSizeX, size_t groupSizeY, size_t& ResImageH, size_t& ResIm
         clReleaseProgram(program);
     }
 
+
 }
 
-cl_kernel createKernel(cl_program& program, char* kernel_name, cl_mem& inputImageBuffer, cl_mem& widthBuffer, cl_mem& heightBuffer, cl_mem& angleBuffer, cl_mem& depthBuffer, cl_mem& CurProbeRadiusBuffer)
+cl_kernel createKernel(cl_program& program, char* kernel_name, cl_mem& inputImageBuffer, cl_mem& outputImageBuffer, cl_mem& widthBuffer, cl_mem& heightBuffer, cl_mem& angleBuffer, cl_mem& depthBuffer, cl_mem& CurProbeRadiusBuffer)
 {
     cl_int status = 0;
     cl_kernel kernel = clCreateKernel(program, kernel_name, &status);
@@ -228,11 +229,12 @@ cl_kernel createKernel(cl_program& program, char* kernel_name, cl_mem& inputImag
 
     // Set the arguments of the kernel
     status = clSetKernelArg(kernel, 0, sizeof(cl_mem), (void*)&inputImageBuffer);
-    status |= clSetKernelArg(kernel, 1, sizeof(cl_mem), (void*)&widthBuffer);
-    status |= clSetKernelArg(kernel, 2, sizeof(cl_mem), (void*)&heightBuffer);
-    status |= clSetKernelArg(kernel, 3, sizeof(cl_mem), (void*)&angleBuffer);
-    status |= clSetKernelArg(kernel, 3, sizeof(cl_mem), (void*)&depthBuffer);
-    status |= clSetKernelArg(kernel, 3, sizeof(cl_mem), (void*)&CurProbeRadiusBuffer);
+    status |= clSetKernelArg(kernel, 1, sizeof(cl_mem), (void*)&outputImageBuffer);
+    status |= clSetKernelArg(kernel, 2, sizeof(cl_mem), (void*)&widthBuffer);
+    status |= clSetKernelArg(kernel, 3, sizeof(cl_mem), (void*)&heightBuffer);
+    status |= clSetKernelArg(kernel, 4, sizeof(cl_mem), (void*)&angleBuffer);
+    status |= clSetKernelArg(kernel, 5, sizeof(cl_mem), (void*)&depthBuffer);
+    status |= clSetKernelArg(kernel, 6, sizeof(cl_mem), (void*)&CurProbeRadiusBuffer);
     LOG_OCL_ERROR(status, "clSetKernelArg Failed.");
 
     return kernel;
