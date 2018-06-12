@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
     double cpu_time = 0.0;
 
 //    int counts = 100;
-    int counts = 1;
+    int counts = 10;
 
     cl_int status = 0;
 
@@ -59,9 +59,9 @@ int main(int argc, char *argv[])
     cl_context context;
     cl_command_queue commandQueue;
     cl_program program;
-    cl_mem inputImageBuffer, widthBuffer, heightBuffer, angleBuffer, depthBuffer, CurProbeRadiusBuffer, outputImageBuffer;
+    cl_mem memObjects[16];//内存对象
 
-    init(groupSizeX, groupSizeY, ResImageH, ResImageW, context, commandQueue, program, "kernel/BiLinear.cl", *img, inputImageBuffer, widthBuffer, heightBuffer, angleBuffer, depthBuffer, CurProbeRadiusBuffer, outputImageBuffer);
+    init(groupSizeX, groupSizeY, ResImageH, ResImageW, context, commandQueue, program, "kernel/BiLinear.cl", img, memObjects);
 
     double ssim = 0.0, mse = 0.0, psnr = 0.0;
 
@@ -145,9 +145,9 @@ int main(int argc, char *argv[])
 
 
 
-    cl_kernel kernel = createKernel(program, "interpolation_kernel", inputImageBuffer, outputImageBuffer, widthBuffer, heightBuffer, angleBuffer, depthBuffer, CurProbeRadiusBuffer);
+    cl_kernel kernel = createKernel(program, "Inter_Linear", memObjects);
 
-    gpu_time = run_kernel("双线性插值", cubic_mat, commandQueue, kernel, outputImageBuffer, ResImageW, ResImageH, groupSizeX, groupSizeY, counts);
+    gpu_time = run_kernel("双线性插值", cubic_mat, commandQueue, kernel, memObjects[15], ResImageW, ResImageH, groupSizeX, groupSizeY, counts);
 
     printf("加速比: %4.3f\n", cpu_time/gpu_time);
 
@@ -158,13 +158,9 @@ int main(int argc, char *argv[])
 
     status = clReleaseKernel(kernel);
     status |= clReleaseProgram(program);
-    status |= clReleaseMemObject(inputImageBuffer);
-    status |= clReleaseMemObject(widthBuffer);
-    status |= clReleaseMemObject(heightBuffer);
-    status |= clReleaseMemObject(angleBuffer);
-    status |= clReleaseMemObject(depthBuffer);
-    status |= clReleaseMemObject(CurProbeRadiusBuffer);
-    status |= clReleaseMemObject(outputImageBuffer);
+    for (int i = 0; i < 16; i++) {
+        clReleaseMemObject(memObjects[i]);
+    }
     status |= clReleaseCommandQueue(commandQueue);
     status |= clReleaseContext(context);
     LOG_OCL_ERROR(status, "clean Failed.");

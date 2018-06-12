@@ -1,89 +1,58 @@
-#pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
-#pragma OPENCL EXTENSION cl_amd_printf : enable
-__kernel void interpolation_kernel(global float *inData, global float *outData, 
-									global int* width, global int* height,
-									global float* angle, global float* depth, global float* radius)
+#define cuEPSILON 1e-6
+
+int signZS(__private int x) {
+    if (x > 0) return 1;
+    else if (x < 0) return -1;
+    else return 0;
+}
+
+__kernel
+void Inter_Linear(__global float* data,   //传入数据
+                     __global const int* iSmapleNum,//img->height
+                     __global const int* iLine,//img->width
+                     __global const int* ResImageW, //传入图像宽度
+                     __global const int* ResImageH, //图像高度
+                     __global const int* X,
+                     __global const int* Y,
+                     __global const int* TranformHor,
+                     __global const int* TranformVec,
+                     __global const float* SectorRadiusPiexl,//扇区半径像素数
+                     __global const float* ProbeRadiusPixel,
+                     __global const float* StartAngle,
+                     __global const float* EndAngle,
+                     __global const float* AveIntervalAngleReciprocal,//单位角度多少数据
+                     __global const float* Ratio, //定义的高度/实际高度的像素数=缩放比例
+                     __global float* SCRes)  //返回结果
 {
-	int iX = get_global_id(0); //width
-	int iY = get_global_id(1); //height
-	
-	// 参数准备
-	int Lnum = *width;
-	int Snum = *height;
-	float Angle = *angle;
-	float Depth = *depth;
-	float CurProbeRadius = *radius;
-	int iBHeightResolve = 1024;
-	float cuEPSILON = 1e-6;
-	float alpha = -0.5; 
-	float ProbeRadiusPixel = CurProbeRadius * Snum / Depth;
-	float SectorRadiusPixel = ProbeRadiusPixel + Snum;
-	float StartAngle = -Angle;
-	float EndAngle = Angle;
-	float AveIntervalAngleReciprocal = (Lnum - 1) / (Angle * 2);
-	int ResImageH = iBHeightResolve;
-	float Ratio = ResImageH / (SectorRadiusPixel - cos(Angle)*ProbeRadiusPixel + 1);
-	int ResImageW = round(sin(Angle)*SectorRadiusPixel * 2 * Ratio + 1);
-	ProbeRadiusPixel = ProbeRadiusPixel*Ratio;
-	SectorRadiusPixel = SectorRadiusPixel *Ratio;
-	Ratio = 1 / Ratio;
-
-	// DEBUG
-	// printf("%d %d %f %f %f",Lnum,Snum,Angle,Depth,CurProbeRadius);
-	// printf("%f %f %f",inData[7682],inData[9874],inData[12398]);
-	
-
-	float SampleOriginX = ResImageW / 2;
-	float SampleOriginY = 0;
-	float TranformHor = 0;
-	float TranformVec = SectorRadiusPixel - ResImageH;
-	
-	float PosX = 0;
-	float PosY = 0;
-	int PosXint1 = 0;
-	int PosYint1 = 0;
-	float fHitX = 0;
-	float fHitY = 0;
-	float fHitPointNorm = 0;
-	float fSamplePointAngle = 0;
-	int sign;
-
-	// 采样位置以交点为原点的成像位置坐标
-	fHitX = iX - SampleOriginX + TranformHor;  
-	fHitY = iY - SampleOriginY + TranformVec;  
-	
-	// 深度计算
-	fHitPointNorm = sqrt(fHitX*fHitX + fHitY*fHitY);
-
-	// 若映射后的在该圆环内
-	if (fHitPointNorm > ProbeRadiusPixel - cuEPSILON &&  fHitPointNorm < SectorRadiusPixel + cuEPSILON) {
-		// 符号判断
-		if(fHitX>0) sign=1;
-		else if(fHitX==0) sign=0;
-		else sign=-1;
-
-		// 映射后的角度计算
-		fSamplePointAngle = acos(fHitY / fHitPointNorm - cuEPSILON)*sign; 
-		
-		// 映射后点的角度没有超出范围
-		if (fSamplePointAngle > StartAngle - cuEPSILON && fSamplePointAngle < EndAngle + cuEPSILON) {
-			
-			PosX = (fSamplePointAngle - StartAngle)*AveIntervalAngleReciprocal;
-			PosY = (fHitPointNorm - ProbeRadiusPixel)*Ratio; 
-			PosXint1 = floor(PosX);
-			PosYint1 = floor(PosY);
-
-			float a = PosX-PosXint1;
-			float b = PosY-PosYint1;
-					
-			if (PosXint1 >= 0 && PosXint1<Lnum && PosYint1 >= 0 && PosYint1<Snum)
-			if(PosXint1 == 0 && PosXint1==Lnum-1 && PosYint1 == 0 && PosYint1==Snum-1 ){
-				printf("reach");
-			}
-				outData[iX*ResImageH+iY] = inData[PosXint1*Snum+PosYint1]*(1-a)*(1-b)+
-										   inData[(PosXint1+1)*Snum+PosYint1]*a*(1-b)+
-										   inData[PosXint1*Snum+PosYint1+1]*(1-a)*b+
-										   inData[(PosXint1+1)*Snum+PosYint1+1]*a*b;					
-		}			
-	}
+    int iX = get_global_id(0);
+    int iY = get_global_id(1);
+    
+    int fHitX = iX - *X + *TranformHor;// 采样位置以交点为原点的成像位置x
+    int fHitY = iY - *Y + *TranformVec; // 采样位置以交点为原点的成像位置y
+    // Depth
+    float fHitPointNorm = sqrt((float)(fHitX*fHitX + fHitY*fHitY)); // 距交点距离
+    // 若映射后的在该圆环内
+    if (fHitPointNorm > *ProbeRadiusPixel - cuEPSILON &&  fHitPointNorm < *SectorRadiusPiexl + cuEPSILON) {
+        // 映射后的点的角度
+        float fSamplePointAngle = acos((float)(fHitY / fHitPointNorm - cuEPSILON)) * signZS(fHitX); // Cos求角度
+        // 若映射后的点的角度没有超出范围
+        if (fSamplePointAngle > *StartAngle - cuEPSILON && fSamplePointAngle < *EndAngle + cuEPSILON) {
+            // CublicSample
+            float PosX = (fSamplePointAngle - *StartAngle)*(*AveIntervalAngleReciprocal); // 第几条数据
+            float PosY = (fHitPointNorm - *ProbeRadiusPixel)*(*Ratio);  // 第几条数据的第几个数据
+            int PosXint1 = floor(PosX);
+            int PosYint1 = floor(PosY);
+            float u = PosX - PosXint1;
+            float v = PosY - PosYint1;
+            // 若转换后该点区间在范围内
+            if (PosXint1 >= 0 && PosXint1 < *iLine - 1 && PosYint1 >= 0 && PosYint1 < *iSmapleNum - 1) {
+                SCRes[iY*(*ResImageW) + iX] = (1 - u)*(1 - v)*(data)[PosXint1*(*iSmapleNum) + PosYint1] +
+                (1 - u)*v*(data)[PosXint1*(*iSmapleNum) + (PosYint1 + 1)] +
+                u*(1 - v)*(data)[(PosXint1 + 1)*(*iSmapleNum) + PosYint1] +
+                u*v*(data)[(PosXint1 + 1)*(*iSmapleNum) + (PosYint1 + 1)];
+            }
+            if(PosXint1 == *iLine-1 || PosYint1==*iSmapleNum-1)
+                SCRes[iY*(*ResImageW) + iX] = (data)[PosXint1*(*iSmapleNum) + PosYint1];
+        }
+    }
 }

@@ -1,6 +1,6 @@
 #include "interpolation_gpu.h"
 
-void init(size_t groupSizeX, size_t groupSizeY, size_t& ResImageH, size_t& ResImageW, cl_context& context, cl_command_queue& commandQueue, cl_program& program, char* filename, Image& image, cl_mem& inputImageBuffer, cl_mem& widthBuffer, cl_mem& heightBuffer, cl_mem& angleBuffer, cl_mem& depthBuffer, cl_mem& CurProbeRadiusBuffer, cl_mem& outputImageBuffer)
+void init(size_t groupSizeX, size_t groupSizeY, size_t& ResImageH, size_t& ResImageW, cl_context& context, cl_command_queue& commandQueue, cl_program& program, char* filename, Image* img, cl_mem* memObjects)
 {
     cl_int status = 0;
     cl_device_type dType = CL_DEVICE_TYPE_GPU;
@@ -60,136 +60,71 @@ void init(size_t groupSizeX, size_t groupSizeY, size_t& ResImageH, size_t& ResIm
     LOG_OCL_ERROR(status, "clCreateCommandQueue Failed.");
 
 
-    int Lnum = image.width;
-    int Snum = image.height;
-    float Angle = image.angle;
-    float Depth = image.depth;
-    float CurProbeRadius = image.radius;
-    int iBHeightResolve = 1024;
-    float	ProbeRadiusPixel = CurProbeRadius * Snum / Depth;
-    float SectorRadiusPixel = ProbeRadiusPixel + Snum;
-    ResImageH = 1024;
-//    ResImageH = 512;
-    float Ratio = ResImageH / (SectorRadiusPixel - cos(Angle)*ProbeRadiusPixel + 1);
-    ResImageW = round(sin(Angle)*SectorRadiusPixel * 2 * Ratio + 1);
+    int iSmapleNum = img->height;
+    int iLine = img->width;
+    int Lnum = iLine;
+    int Snum = iSmapleNum;
 
-    //Create OpenCL device input buffer
-    inputImageBuffer = clCreateBuffer(
-        context,
-        CL_MEM_READ_ONLY,
-        sizeof(float) * image.width * image.height,
-        NULL,
-        &status);
-    LOG_OCL_ERROR(status, "clCreateBuffer Failed while creating the image buffer.");
-    widthBuffer = clCreateBuffer(
-        context,
-        CL_MEM_READ_ONLY,
-        sizeof(int),
-        NULL,
-        &status);
-    LOG_OCL_ERROR(status, "clCreateBuffer Failed while creating the imgPara1 buffer.");
-    heightBuffer = clCreateBuffer(
-        context,
-        CL_MEM_READ_ONLY,
-        sizeof(int),
-        NULL,
-        &status);
-    LOG_OCL_ERROR(status, "clCreateBuffer Failed while creating the imgPara1 buffer.");
-    angleBuffer = clCreateBuffer(
-        context,
-        CL_MEM_READ_ONLY,
-        sizeof(float),
-        NULL,
-        &status);
-    LOG_OCL_ERROR(status, "clCreateBuffer Failed while creating the imgPara2 buffer.");
-    depthBuffer = clCreateBuffer(
-        context,
-        CL_MEM_READ_ONLY,
-        sizeof(float),
-        NULL,
-        &status);
-    LOG_OCL_ERROR(status, "clCreateBuffer Failed while creating the imgPara2 buffer.");
-    CurProbeRadiusBuffer = clCreateBuffer(
-        context,
-        CL_MEM_READ_ONLY,
-        sizeof(float),
-        NULL,
-        &status);
-    LOG_OCL_ERROR(status, "clCreateBuffer Failed while creating the imgPara2 buffer.");
+    int iBHeightResolve = 1024; // 预定义的图像高度
+    //    float cuEPSILON = 1e-6;
+    //    float alpha = -0.5; // cubic 插值系数 : -1, -0.75 or -0.5.
+    float ProbeRadiusPixel = img->radius * Snum / img->depth;
+    float SectorRadiusPiexl = ProbeRadiusPixel + Snum;  // 扇区半径的像素数
+    float StartAngle = -img->angle, EndAngle = img->angle;
+    float AveIntervalAngleReciprocal = (Lnum - 1) / (img->angle * 2); // 单位角度有多少条数据
+    ResImageH = iBHeightResolve;
+    float Ratio = ResImageH / (SectorRadiusPiexl - cos(img->angle)*ProbeRadiusPixel + 1); // 定义的高度/实际高度的像素数=缩放比例
+    ResImageW = round(sin(img->angle)*SectorRadiusPiexl * 2 * Ratio + 1); // 图像宽度
+    ProbeRadiusPixel = ProbeRadiusPixel*Ratio;    // 按比例缩放后的探测半径
+    SectorRadiusPiexl = SectorRadiusPiexl *Ratio; // 按比例缩放后的扇区半径
+    Ratio = 1 / Ratio;   // 原高度/定义高度
 
-    outputImageBuffer = clCreateBuffer(
-        context,
-        CL_MEM_WRITE_ONLY,
-        sizeof(float) * ResImageH * ResImageW,
-        NULL,
-        &status);
-    LOG_OCL_ERROR(status, "clCreateBuffer Failed while creating the image buffer.");
+    // 坐标转化参数
+    int X = ResImageW / 2;
+    int Y = 0;
+    int TranformHor = 0;
+    int TranformVec = SectorRadiusPiexl - ResImageH; // 扇区半径-图像高度
 
-    //Set input data
-    cl_event writeEvt[6];
-    status = clEnqueueWriteBuffer(commandQueue,
-        inputImageBuffer,
-        CL_TRUE,
-        0,
-        image.width * image.height * sizeof(float),
-        image.data,
-        0,
-        NULL,
-        &writeEvt[0]);
-    LOG_OCL_ERROR(status, "clEnqueueWriteBuffer Failed while writing the image data.");
-    status = clEnqueueWriteBuffer(commandQueue,
-        widthBuffer,
-        CL_TRUE,
-        0,
-        sizeof(int),
-        &image.width,
-        0,
-        NULL,
-        &writeEvt[1]);
-    LOG_OCL_ERROR(status, "clEnqueueWriteBuffer Failed while writing the widthBuffer.");
-    status = clEnqueueWriteBuffer(commandQueue,
-        heightBuffer,
-        CL_TRUE,
-        0,
-        sizeof(int),
-        &image.height,
-        0,
-        NULL,
-        &writeEvt[2]);
-    LOG_OCL_ERROR(status, "clEnqueueWriteBuffer Failed while writing the heightBuffer.");
-    status = clEnqueueWriteBuffer(commandQueue,
-        angleBuffer,
-        CL_TRUE,
-        0,
-        sizeof(float),
-        &image.angle,
-        0,
-        NULL,
-        &writeEvt[3]);
-    LOG_OCL_ERROR(status, "clEnqueueWriteBuffer Failed while writing the angleBuffer.");
-    status = clEnqueueWriteBuffer(commandQueue,
-        depthBuffer,
-        CL_TRUE,
-        0,
-        sizeof(float),
-        &image.depth,
-        0,
-        NULL,
-        &writeEvt[4]);
-    LOG_OCL_ERROR(status, "clEnqueueWriteBuffer Failed while writing the depthBuffer.");
-    status = clEnqueueWriteBuffer(commandQueue,
-        CurProbeRadiusBuffer,
-        CL_TRUE,
-        0,
-        sizeof(float),
-        &image.radius,
-        0,
-        NULL,
-        &writeEvt[5]);
-    LOG_OCL_ERROR(status, "clEnqueueWriteBuffer Failed while writing the CurProbeRadiusBuffer.");
+    float *SCRes = new float[ResImageH * ResImageW];
 
-    status = clFinish(commandQueue);
-    LOG_OCL_ERROR(status, "clFinish Failed while writing the image data and parameters.");
+    //创建内存对象
+    memObjects[0] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                       sizeof(float) * iSmapleNum * iLine, img->data, NULL);
+    memObjects[1] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                       sizeof(int), &iSmapleNum, NULL);
+    memObjects[2] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                       sizeof(int), &iLine, NULL);
+    memObjects[3] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                       sizeof(int), &ResImageW, NULL);
+    memObjects[4] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                       sizeof(int), &ResImageH, NULL);
+    memObjects[5] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                       sizeof(int), &X, NULL);
+    memObjects[6] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                       sizeof(int), &Y, NULL);
+    memObjects[7] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                       sizeof(int), &TranformHor, NULL);
+    memObjects[8] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                       sizeof(int), &TranformVec, NULL);
+    memObjects[9] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                       sizeof(float), &SectorRadiusPiexl, NULL);
+    memObjects[10] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                       sizeof(float), &ProbeRadiusPixel, NULL);
+    memObjects[11] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                       sizeof(float), &StartAngle, NULL);
+    memObjects[12] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                       sizeof(float), &EndAngle, NULL);
+    memObjects[13] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                       sizeof(float), &AveIntervalAngleReciprocal, NULL);
+    memObjects[14] = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                       sizeof(float), &Ratio, NULL);
+    memObjects[15] = clCreateBuffer(context, CL_MEM_READ_WRITE,
+                    sizeof(float) * ResImageH * ResImageW, NULL, NULL);
+
+
+
+//    status = clFinish(commandQueue);
+//    LOG_OCL_ERROR(status, "clFinish Failed while writing the image data and parameters.");
 
 
     ifstream kernelFile(filename, ios::in);
@@ -221,20 +156,24 @@ void init(size_t groupSizeX, size_t groupSizeY, size_t& ResImageH, size_t& ResIm
 
 }
 
-cl_kernel createKernel(cl_program& program, char* kernel_name, cl_mem& inputImageBuffer, cl_mem& outputImageBuffer, cl_mem& widthBuffer, cl_mem& heightBuffer, cl_mem& angleBuffer, cl_mem& depthBuffer, cl_mem& CurProbeRadiusBuffer)
+cl_kernel createKernel(cl_program& program, char* kernel_name, cl_mem* memObjects)
 {
     cl_int status = 0;
     cl_kernel kernel = clCreateKernel(program, kernel_name, &status);
     LOG_OCL_ERROR(status, "clCreateKernel interpolation_kernel Failed.");
 
     // Set the arguments of the kernel
-    status = clSetKernelArg(kernel, 0, sizeof(cl_mem), (void*)&inputImageBuffer);
-    status |= clSetKernelArg(kernel, 1, sizeof(cl_mem), (void*)&outputImageBuffer);
-    status |= clSetKernelArg(kernel, 2, sizeof(cl_mem), (void*)&widthBuffer);
-    status |= clSetKernelArg(kernel, 3, sizeof(cl_mem), (void*)&heightBuffer);
-    status |= clSetKernelArg(kernel, 4, sizeof(cl_mem), (void*)&angleBuffer);
-    status |= clSetKernelArg(kernel, 5, sizeof(cl_mem), (void*)&depthBuffer);
-    status |= clSetKernelArg(kernel, 6, sizeof(cl_mem), (void*)&CurProbeRadiusBuffer);
+//    status = clSetKernelArg(kernel, 0, sizeof(cl_mem), (void*)&inputImageBuffer);
+//    status |= clSetKernelArg(kernel, 1, sizeof(cl_mem), (void*)&outputImageBuffer);
+//    status |= clSetKernelArg(kernel, 2, sizeof(cl_mem), (void*)&widthBuffer);
+//    status |= clSetKernelArg(kernel, 3, sizeof(cl_mem), (void*)&heightBuffer);
+//    status |= clSetKernelArg(kernel, 4, sizeof(cl_mem), (void*)&angleBuffer);
+//    status |= clSetKernelArg(kernel, 5, sizeof(cl_mem), (void*)&depthBuffer);
+//    status |= clSetKernelArg(kernel, 6, sizeof(cl_mem), (void*)&CurProbeRadiusBuffer);
+    for (int i = 0; i < 16; i++) {
+        status |= clSetKernelArg(kernel, i, sizeof(cl_mem), &memObjects[i]);
+    }
+
     LOG_OCL_ERROR(status, "clSetKernelArg Failed.");
 
     return kernel;
@@ -307,6 +246,7 @@ double run_kernel(char* msg, Mat& org_mat, cl_command_queue& commandQueue, cl_ke
 //        printf("%d %d %d %d\n", img->width, img->height, org_mat.cols, org_mat.rows);
 
         mat = cvarrToMat(img);
+//        printf("%d %d %d %d\n", ResImageW, ResImageH, org_mat.cols, org_mat.rows);
 
         ssim += getSSIM(mat, org_mat);
         psnr += getPSNR(mat, org_mat);
