@@ -48,7 +48,6 @@ int main(int argc, char *argv[])
     double gpu_time = 0.0;
     double cpu_time = 0.0;
 
-//    int counts = 100;
     int counts = 5;
 
     cl_int status = 0;
@@ -74,18 +73,7 @@ int main(int argc, char *argv[])
 
 
     printf("插值结果如下：\n");
-
-
-    //    cv::imwrite("双线性插值.bmp", mat2);
-    //    cv::imwrite("双三次插值.bmp", mat3);
-
     printf("算法\t平台\t平均时间(ms)\tSSIM\tPSNR\tMSE\n");
-
-//    printf("%d %d %f %f %f\n", img->width, img->height, img->angle, img->depth, img->radius);
-
-//    for (int i=0;i<100;i++)
-//        printf("%f\n", img->data[i]);
-
 
     //双三次插值
     for (int i=0; i<counts; i++)
@@ -100,22 +88,18 @@ int main(int argc, char *argv[])
         psnr += getPSNR(cubic_mat, cubic_mat);
     }
 
-
     cv::imwrite("双三次插值_cpu.bmp", cubic_mat);
 
     cpu_time = cpu_total_time/counts*1000.0;
     printf("双三次插值\t%s\t%.2f\t\t%.2f\t%.2f\t%.2f\t\n", "CPU", cpu_time, ssim/counts, psnr/counts, mse/counts);
 
     kernel = createKernel(program, "Bi_cubic", memObjects);
-
     gpu_time = run_kernel("双三次插值", cubic_mat, commandQueue, kernel, memObjects[15], ResImageW, ResImageH, groupSizeX, groupSizeY, counts);
 
     printf("加速比: %4.3f\n", cpu_time/gpu_time);
 
 
-
     ssim = 0.0, mse = 0.0, psnr = 0.0, cpu_total_time = 0.0;
-
     //邻近插值
     for (int i=0; i<counts; i++)
     {
@@ -132,19 +116,15 @@ int main(int argc, char *argv[])
     cv::imwrite("邻近插值_cpu.bmp", mat);
 
     cpu_time = cpu_total_time/counts*1000.0;
-
     printf("邻近插值\t%s\t%.2f\t\t%.2f\t%.2f\t%.2f\t\n", "CPU", cpu_time, ssim/counts, psnr/counts, mse/counts);
 
     kernel = createKernel(program, "ScanConvCurve_B", memObjects);
-
     gpu_time = run_kernel("邻近插值", cubic_mat, commandQueue, kernel, memObjects[15], ResImageW, ResImageH, groupSizeX, groupSizeY, counts);
 
     printf("加速比: %4.3f\n", cpu_time/gpu_time);
 
 
-
     ssim = 0.0, mse = 0.0, psnr = 0.0, cpu_total_time = 0.0;
-
     //双线性插值
     for (int i=0; i<counts; i++)
     {
@@ -160,44 +140,30 @@ int main(int argc, char *argv[])
 
     cv::imwrite("双线性插值_cpu.bmp", mat);
 
-
     cpu_time = cpu_total_time/counts*1000.0;
-
     printf("双线性插值\t%s\t%.2f\t\t%.2f\t%.2f\t%.2f\t\n", "CPU", cpu_time, ssim/counts, psnr/counts, mse/counts);
 
-
-
     kernel = createKernel(program, "Inter_Linear", memObjects);
-
     gpu_time = run_kernel("双线性插值", cubic_mat, commandQueue, kernel, memObjects[15], ResImageW, ResImageH, groupSizeX, groupSizeY, counts);
 
     printf("加速比: %4.3f\n", cpu_time/gpu_time);
 
+    // 使用3种不同的插值策略
     kernel = createKernel(program, "Nearst_cubic", memObjects);
-
-
     gpu_time = run_kernel("邻近(上)+双三次(下)", cubic_mat, commandQueue, kernel, memObjects[15], ResImageW, ResImageH, groupSizeX, groupSizeY, counts);
 
     kernel = createKernel(program, "Nearst_linear", memObjects);
-
-
-    gpu_time = run_kernel("邻近(上)+线性(下)", cubic_mat, commandQueue, kernel, memObjects[15], ResImageW, ResImageH, groupSizeX, groupSizeY, counts);
+    gpu_time = run_kernel("邻近(上)+双线性(下)", cubic_mat, commandQueue, kernel, memObjects[15], ResImageW, ResImageH, groupSizeX, groupSizeY, counts);
 
     kernel = createKernel(program, "Linear_cubic", memObjects);
-
-
-    gpu_time = run_kernel("线性(上)+双三次(下)", cubic_mat, commandQueue, kernel, memObjects[15], ResImageW, ResImageH, groupSizeX, groupSizeY, counts);
+    gpu_time = run_kernel("双线性线性(上)+双三次(下)", cubic_mat, commandQueue, kernel, memObjects[15], ResImageW, ResImageH, groupSizeX, groupSizeY, counts);
 
     kernel = createKernel(program, "Nearst_linear_cubic", memObjects);
+    gpu_time = run_kernel("邻近(上)+双线性(中)+双三次(下)", cubic_mat, commandQueue, kernel, memObjects[15], ResImageW, ResImageH, groupSizeX, groupSizeY, counts);
 
 
-    gpu_time = run_kernel("邻近(上)+线性(中)+双三次(下)", cubic_mat, commandQueue, kernel, memObjects[15], ResImageW, ResImageH, groupSizeX, groupSizeY, counts);
-
-
-
-
-
-
+    cvReleaseImage(&im);
+    cvReleaseImage(&imsc);
     status = clReleaseKernel(kernel);
     status |= clReleaseProgram(program);
     for (int i = 0; i < 16; i++) {
